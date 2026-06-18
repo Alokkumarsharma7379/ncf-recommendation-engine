@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NCF Core Engine</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg:      #0c0d0f;
+      --surface: #111316;
+      --raised:  #16181d;
+      --line:    #1e2229;
+      --line2:   #252930;
+      --t1:      #d9dadc;
+      --t2:      #5c6370;
+      --t3:      #353940;
+      --accent:  #3a7bd5;
+      --green:   #00b386;
+      --red:     #e55252;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--t1);
+      font-family: 'Inter', system-ui, sans-serif;
+      font-size: 14px;
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .mono { font-family: 'JetBrains Mono', monospace; }
+
+    /* Header */
+    #header {
+      border-bottom: 1px solid var(--line);
+      padding: 0 24px;
+      height: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      background: var(--bg);
+      z-index: 10;
+    }
+
+    #header .left { display: flex; align-items: center; gap: 10px; }
+
+    .status-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--green);
+      flex-shrink: 0;
+    }
+
+    .status-dot.offline { background: var(--red); animation: none; }
+
+    @keyframes breathe {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.35; }
+    }
+
+    .status-dot.online { animation: breathe 2.4s ease-in-out infinite; }
+
+    .header-title {
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--t1);
+    }
+
+    .header-right { display: flex; align-items: center; gap: 20px; }
+
+    .header-meta {
+      font-size: 11px;
+      color: var(--t3);
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    #sys-status {
+      font-size: 11px;
+      font-family: 'JetBrains Mono', monospace;
+      color: var(--green);
+    }
+
+    #sys-status.offline { color: var(--red); }
+
+    /* Layout */
+    main { max-width: 680px; margin: 0 auto; padding: 56px 16px 80px; }
+
+    /* Hero block */
+    .hero { margin-bottom: 48px; }
+
+    .hero-eyebrow {
+      font-size: 10px;
+      font-family: 'JetBrains Mono', monospace;
+      color: var(--t3);
+      text-transform: uppercase;
+      letter-spacing: 0.2em;
+      margin-bottom: 10px;
+    }
+
+    .hero h1 {
+      font-size: 22px;
+      font-weight: 600;
+      color: var(--t1);
+      line-height: 1.2;
+      margin-bottom: 8px;
+    }
+
+    .hero p {
+      font-size: 13px;
+      color: var(--t2);
+      line-height: 1.65;
+    }
+
+    /* Search panel */
+    .search-panel {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      padding: 20px;
+    }
+
+    .field-row {
+      display: grid;
+      grid-template-columns: 1fr 120px;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .field label {
+      display: block;
+      font-size: 10px;
+      font-family: 'JetBrains Mono', monospace;
+      text-transform: uppercase;
+      letter-spacing: 0.16em;
+      color: var(--t3);
+      margin-bottom: 7px;
+    }
+
+    .field input,
+    .field select {
+      width: 100%;
+      height: 36px;
+      background: var(--bg);
+      border: 1px solid var(--line2);
+      color: var(--t1);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      padding: 0 10px;
+      transition: border-color 0.15s;
+      appearance: none;
+      -webkit-appearance: none;
+    }
+
+    .field input::placeholder { color: var(--t3); }
+    .field input:focus,
+    .field select:focus { outline: none; border-color: var(--accent); }
+
+    .field select {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' fill='none'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23353940' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 10px center;
+      padding-right: 28px;
+      cursor: pointer;
+    }
+
+    #predict-btn {
+      width: 100%;
+      height: 38px;
+      background: var(--accent);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 600;
+      font-family: 'JetBrains Mono', monospace;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      border: none;
+      cursor: pointer;
+      transition: opacity 0.15s, background 0.15s;
+    }
+
+    #predict-btn:hover:not(:disabled) { background: #2f6abf; }
+    #predict-btn:active:not(:disabled) { opacity: 0.85; }
+    #predict-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    #error-msg {
+      margin-top: 10px;
+      font-size: 11px;
+      font-family: 'JetBrains Mono', monospace;
+      color: var(--red);
+      display: none;
+    }
+
+    /* Results */
+    #results-section { margin-top: 36px; display: none; }
+
+    .results-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+
+    .results-label {
+      font-size: 10px;
+      font-family: 'JetBrains Mono', monospace;
+      text-transform: uppercase;
+      letter-spacing: 0.2em;
+      color: var(--t3);
+    }
+
+    #result-meta {
+      font-size: 11px;
+      font-family: 'JetBrains Mono', monospace;
+      color: var(--t2);
+    }
+
+    /* Table — Codeforces standings aesthetic */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    thead th {
+      font-size: 10px;
+      font-family: 'JetBrains Mono', monospace;
+      text-transform: uppercase;
+      letter-spacing: 0.16em;
+      color: var(--t3);
+      font-weight: 500;
+      padding: 0 10px 12px;
+      text-align: left;
+      border-bottom: 1px solid var(--line);
+    }
+
+    thead th.right { text-align: right; }
+    thead th.center { text-align: center; }
+
+    tbody tr {
+      border-bottom: 1px solid var(--line);
+      transition: background 0.1s;
+    }
+
+    tbody tr:hover { background: var(--raised); }
+
+    tbody td {
+      padding: 0 10px;
+      height: 44px;
+      vertical-align: middle;
+    }
+
+    .rank-num {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      color: var(--t3);
+      width: 36px;
+    }
+
+    .rank-num.top { color: var(--t1); font-weight: 600; }
+
+    .item-id-cell { padding-left: 0; }
+
+    .item-label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      color: var(--t2);
+    }
+
+    .item-label.top { color: var(--t1); }
+
+    .item-sub {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: var(--t3);
+      margin-left: 10px;
+    }
+
+    .score-cell {
+      text-align: right;
+      min-width: 160px;
+    }
+
+    .score-val {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      color: var(--t2);
+    }
+
+    .score-val.top { color: var(--green); }
+
+    .score-bar-wrap {
+      margin-top: 5px;
+      height: 2px;
+      background: var(--line);
+      display: flex;
+      justify-content: flex-end;
+    }
+
+    .score-bar-fill {
+      height: 100%;
+      transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    /* Loading */
+    #loading {
+      display: none;
+      margin-top: 36px;
+      text-align: center;
+      font-size: 11px;
+      font-family: 'JetBrains Mono', monospace;
+      color: var(--t3);
+      letter-spacing: 0.1em;
+    }
+
+    @keyframes ellipsis {
+      0%   { content: '.'; }
+      33%  { content: '..'; }
+      66%  { content: '...'; }
+    }
+
+    #loading::after {
+      content: '.';
+      animation: ellipsis 1.2s steps(1, end) infinite;
+    }
+
+    /* Footer */
+    footer {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      border-top: 1px solid var(--line);
+      height: 30px;
+      display: flex;
+      align-items: center;
+      padding: 0 24px;
+      background: var(--bg);
+      gap: 24px;
+    }
+
+    .footer-item {
+      font-size: 10px;
+      font-family: 'JetBrains Mono', monospace;
+      color: var(--t3);
+      letter-spacing: 0.08em;
+    }
+
+    .footer-item span { color: var(--t2); }
+  </style>
+</head>
+<body>
+
+  <header id="header">
+    <div class="left">
+      <div class="status-dot online" id="status-dot"></div>
+      <span class="header-title">NCF Core Engine</span>
+    </div>
+    <div class="header-right">
+      <span class="header-meta">NeuMF · MovieLens-100k</span>
+      <span class="header-meta">localhost:8000</span>
+      <span id="sys-status">● ONLINE</span>
+    </div>
+  </header>
+
+  <main>
+
+    <div class="hero">
+      <div class="hero-eyebrow">Neural Collaborative Filtering</div>
+      <h1>Recommendation Engine</h1>
+      <p>Query the trained NeuMF model with a user ID to surface top-K ranked items. Scores are raw sigmoid outputs from the final linear layer.</p>
+    </div>
+
+    <div class="search-panel">
+      <div class="field-row">
+        <div class="field">
+          <label>User ID</label>
+          <input type="number" id="user-input" placeholder="e.g. 42" min="0" />
+        </div>
+        <div class="field">
+          <label>Top K</label>
+          <select id="topk-select">
+            <option value="10">10</option>
+            <option value="20">20</option>
+            <option value="50">50</option>
+          </select>
+        </div>
+      </div>
+      <button id="predict-btn" onclick="fetchRecommendations()">Get Recommendations</button>
+      <div id="error-msg"></div>
+    </div>
+
+    <div id="loading">Querying model</div>
+
+    <div id="results-section">
+      <div class="results-header">
+        <span class="results-label">Ranked Output</span>
+        <span id="result-meta"></span>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th style="width:44px">#</th>
+            <th>Item</th>
+            <th class="right">Match Score</th>
+          </tr>
+        </thead>
+        <tbody id="results-body"></tbody>
+      </table>
+    </div>
+
+  </main>
+
+  <footer>
+    <span class="footer-item">Model <span>NeuMF</span></span>
+    <span class="footer-item">Dataset <span>MovieLens-100k</span></span>
+    <span class="footer-item">Eval <span>NDCG@10 · HR@10</span></span>
+    <span class="footer-item" id="latency-display" style="margin-left:auto"></span>
+  </footer>
+
+  <script>
+    const API = 'https://upgraded-umbrella-r46r9vp7p77pf5r6j-8000.app.github.dev';;
+
+    async function checkHealth() {
+      const dot = document.getElementById('status-dot');
+      const label = document.getElementById('sys-status');
+      try {
+        const r = await fetch(`${API}/health`, { signal: AbortSignal.timeout(3000) });
+        if (!r.ok) throw new Error();
+        dot.className = 'status-dot online';
+        label.className = '';
+        label.style.color = 'var(--green)';
+        label.textContent = '● ONLINE';
+      } catch {
+        dot.className = 'status-dot offline';
+        label.className = 'offline';
+        label.style.color = 'var(--red)';
+        label.textContent = '● OFFLINE';
+      }
+    }
+
+    async function fetchRecommendations() {
+      const raw = document.getElementById('user-input').value.trim();
+      const topK = parseInt(document.getElementById('topk-select').value);
+      const errEl = document.getElementById('error-msg');
+      const btn = document.getElementById('predict-btn');
+
+      errEl.style.display = 'none';
+
+      const userId = parseInt(raw);
+      if (raw === '' || isNaN(userId) || userId < 0) {
+        errEl.textContent = '→ invalid user_id. provide a non-negative integer.';
+        errEl.style.display = 'block';
+        return;
+      }
+
+      document.getElementById('results-section').style.display = 'none';
+      document.getElementById('loading').style.display = 'block';
+      btn.disabled = true;
+      btn.textContent = 'Fetching...';
+
+      const t0 = performance.now();
+
+      try {
+        const res = await fetch(`${API}/predict`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user_id: userId, top_k: topK }),
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data.detail || `HTTP ${res.status}`);
+        }
+
+        const elapsed = (performance.now() - t0).toFixed(0);
+        document.getElementById('latency-display').innerHTML =
+          `Latency <span>${elapsed} ms</span>`;
+
+        renderResults(data);
+      } catch (err) {
+        errEl.textContent = `→ ${err.message}`;
+        errEl.style.display = 'block';
+      } finally {
+        document.getElementById('loading').style.display = 'none';
+        btn.disabled = false;
+        btn.textContent = 'Get Recommendations';
+      }
+    }
+
+    function renderResults(data) {
+      const tbody = document.getElementById('results-body');
+      const meta = document.getElementById('result-meta');
+      const recs = data.recommendations;
+
+      meta.textContent = `user_id: ${data.user_id}  ·  ${recs.length} items`;
+      tbody.innerHTML = '';
+
+      const maxScore = Math.max(...recs.map(r => r.score));
+
+      recs.forEach((rec, i) => {
+        const rank = i + 1;
+        const isTop = rank <= 3;
+        const barPct = maxScore > 0 ? (rec.score / maxScore) * 100 : 0;
+        const barColor = isTop ? 'var(--green)' : 'var(--accent)';
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>
+            <span class="rank-num${isTop ? ' top' : ''}">${String(rank).padStart(2, '0')}</span>
+          </td>
+          <td class="item-id-cell">
+            <span class="item-label${isTop ? ' top' : ''}">item_${String(rec.item_id).padStart(4, '0')}</span>
+            <span class="item-sub">#${rec.item_id}</span>
+          </td>
+          <td class="score-cell">
+            <span class="score-val${isTop ? ' top' : ''}">${rec.score.toFixed(6)}</span>
+            <div class="score-bar-wrap">
+              <div class="score-bar-fill" style="width:0%;background:${barColor}" data-width="${barPct.toFixed(2)}"></div>
+            </div>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      document.getElementById('results-section').style.display = 'block';
+
+      requestAnimationFrame(() => {
+        document.querySelectorAll('.score-bar-fill').forEach(el => {
+          el.style.width = el.dataset.width + '%';
+        });
+      });
+    }
+
+    document.getElementById('user-input').addEventListener('keydown', e => {
+      if (e.key === 'Enter') fetchRecommendations();
+    });
+
+    checkHealth();
+    setInterval(checkHealth, 30000);
+  </script>
+
+</body>
+</html>
