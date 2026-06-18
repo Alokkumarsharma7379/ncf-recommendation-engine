@@ -1,5 +1,5 @@
-torch==2.3.0
-torchvision==0.18.0
+torch
+torchvision
 numpy==1.26.4
 pandas==2.2.2
 scikit-learn==1.5.0
