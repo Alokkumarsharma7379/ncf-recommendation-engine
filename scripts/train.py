@@ -8,10 +8,10 @@ import torch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from data.dataset import get_loader
+from data.dataset import get_bpr_loader
 from data.preprocess import run as build_dataset
 from models.ncf import NeuMF
-from training.loss import bce_loss
+from training.loss import bpr_loss
 from training.trainer import NCFTrainer
 
 CFG = {
@@ -25,6 +25,7 @@ CFG = {
     "eval_every": 1,
     "k": 10,
     "num_workers": 0,
+    "loss_type": "bpr",
 }
 
 PROCESSED = Path("data/processed")
@@ -51,12 +52,12 @@ def main() -> None:
 
     n_users = meta["n_users"]
     n_items = meta["n_items"]
-    print(f"Dataset: {n_users} users | {n_items} items")
+    print(f"Dataset: {n_users:,} users | {n_items:,} items")
 
     train_df = pd.read_parquet(PROCESSED / "train.parquet")
     test_df = pd.read_parquet(PROCESSED / "test.parquet")
 
-    train_loader = get_loader(
+    train_loader = get_bpr_loader(
         train_df,
         batch_size=CFG["batch_size"],
         shuffle=True,
@@ -81,12 +82,13 @@ def main() -> None:
     trainer = NCFTrainer(
         model=model,
         optimizer=optimizer,
-        loss_fn=bce_loss(),
+        loss_fn=bpr_loss,
         device=device,
+        loss_type=CFG["loss_type"],
         scheduler=scheduler,
     )
 
-    print(f"\nTraining for {CFG['epochs']} epochs...\n")
+    print(f"\nTraining for {CFG['epochs']} epochs with {CFG['loss_type'].upper()} loss...\n")
     history = trainer.fit(
         train_loader=train_loader,
         test_df=test_df,
@@ -95,9 +97,10 @@ def main() -> None:
         k=CFG["k"],
     )
 
-    best_hr = max(history["HR"]) if history["HR"] else 0.0
-    best_ndcg = max(history["NDCG"]) if history["NDCG"] else 0.0
-    print(f"\nBest HR@{CFG['k']}: {best_hr:.4f} | Best NDCG@{CFG['k']}: {best_ndcg:.4f}")
+    best_precision = max(history["Precision"]) if history["Precision"] else 0.0
+    best_ndcg = max(history["ND" \
+    "CG"]) if history["NDCG"] else 0.0
+    print(f"\nBest Precision@{CFG['k']}: {best_precision:.4f} | Best NDCG@{CFG['k']}: {best_ndcg:.4f}")
     print("Best model saved to saved_models/best_model.pt")
 
 

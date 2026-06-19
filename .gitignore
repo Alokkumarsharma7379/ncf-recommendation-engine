@@ -8,5 +8,9 @@ venv/
 env/
 .vscode/
 .DS_Store
-saved_models/*.pt
-!saved_models/best_model.pt
+
+saved_models/
+data/raw/
+
+*.pt
+*.jsonl

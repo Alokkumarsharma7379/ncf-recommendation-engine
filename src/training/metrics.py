@@ -3,9 +3,11 @@ import math
 import torch
 
 
-def hit_rate_at_k(scores: torch.Tensor, pos_idx: int = 0, k: int = 10) -> float:
+def precision_at_k(scores: torch.Tensor, pos_idx: int = 0, k: int = 10) -> float:
+    """With one relevant item per user, precision@K = 1/K on a hit, 0 otherwise."""
     _, topk = scores.topk(k)
-    return float((topk == pos_idx).any())
+    hit = bool((topk == pos_idx).any())
+    return (1.0 / k) if hit else 0.0
 
 
 def ndcg_at_k(scores: torch.Tensor, pos_idx: int = 0, k: int = 10) -> float:
@@ -23,7 +25,7 @@ def evaluate(
     k: int = 10,
 ) -> dict[str, float]:
     model.eval()
-    hr_scores, ndcg_scores = [], []
+    precision_scores, ndcg_scores = [], []
 
     with torch.no_grad():
         for row in test_df.itertuples(index=False):
@@ -34,10 +36,10 @@ def evaluate(
 
             scores = model(user, items)
 
-            hr_scores.append(hit_rate_at_k(scores, pos_idx=0, k=k))
+            precision_scores.append(precision_at_k(scores, pos_idx=0, k=k))
             ndcg_scores.append(ndcg_at_k(scores, pos_idx=0, k=k))
 
     return {
-        f"HR@{k}": round(sum(hr_scores) / len(hr_scores), 4),
+        f"Precision@{k}": round(sum(precision_scores) / len(precision_scores), 4),
         f"NDCG@{k}": round(sum(ndcg_scores) / len(ndcg_scores), 4),
     }

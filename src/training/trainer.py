@@ -17,33 +17,42 @@ class NCFTrainer:
         optimizer: torch.optim.Optimizer,
         loss_fn: Callable,
         device: torch.device,
+        loss_type: str = "bpr",
         scheduler: Optional[torch.optim.lr_scheduler._LRScheduler] = None,
         checkpoint_dir: str = "saved_models",
     ):
+        if loss_type not in {"bce", "bpr"}:
+            raise ValueError(f"loss_type must be 'bce' or 'bpr', got {loss_type!r}")
+
         self.model = model.to(device)
         self.optimizer = optimizer
         self.loss_fn = loss_fn
         self.device = device
+        self.loss_type = loss_type
         self.scheduler = scheduler
         self.checkpoint_dir = Path(checkpoint_dir)
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
-        self.best_ndcg = -float("inf")
+        self.best_precision = -float("inf")
 
     def train_epoch(self, loader: DataLoader) -> float:
         self.model.train()
         total_loss = 0.0
 
-        for users, items, labels in tqdm(loader, desc="Training", leave=False):
-            users = users.to(self.device)
-            items = items.to(self.device)
-            labels = labels.to(self.device)
-
+        for batch in tqdm(loader, desc="Training", leave=False):
             self.optimizer.zero_grad(set_to_none=True)
-            preds = self.model(users, items)
-            loss = self.loss_fn(preds, labels)
+
+            if self.loss_type == "bpr":
+                users, pos_items, neg_items = (t.to(self.device) for t in batch)
+                pos_scores = self.model(users, pos_items)
+                neg_scores = self.model(users, neg_items)
+                loss = self.loss_fn(pos_scores, neg_scores)
+            else:
+                users, items, labels = (t.to(self.device) for t in batch)
+                preds = self.model(users, items)
+                loss = self.loss_fn(preds, labels)
+
             loss.backward()
             self.optimizer.step()
-
             total_loss += loss.item()
 
         if self.scheduler is not None:
@@ -55,11 +64,11 @@ class NCFTrainer:
         return evaluate(self.model, test_df, self.device, k=k)
 
     def save_checkpoint(self, metrics: dict[str, float], epoch: int) -> bool:
-        ndcg_key = next(k for k in metrics if k.startswith("NDCG"))
-        if metrics[ndcg_key] <= self.best_ndcg:
+        precision_key = next(k for k in metrics if k.startswith("Precision"))
+        if metrics[precision_key] <= self.best_precision:
             return False
 
-        self.best_ndcg = metrics[ndcg_key]
+        self.best_precision = metrics[precision_key]
         state = {
             "epoch": epoch,
             "model_state": self.model.state_dict(),
@@ -77,7 +86,7 @@ class NCFTrainer:
         eval_every: int = 1,
         k: int = 10,
     ) -> dict[str, list]:
-        history = {"loss": [], "HR": [], "NDCG": []}
+        history = {"loss": [], "Precision": [], "NDCG": []}
 
         for epoch in range(1, epochs + 1):
             loss = self.train_epoch(train_loader)
@@ -87,16 +96,16 @@ class NCFTrainer:
                 metrics = self.evaluate(test_df, k=k)
                 improved = self.save_checkpoint(metrics, epoch)
 
-                hr_key = next(k for k in metrics if k.startswith("HR"))
+                precision_key = next(k for k in metrics if k.startswith("Precision"))
                 ndcg_key = next(k for k in metrics if k.startswith("NDCG"))
 
-                history["HR"].append(metrics[hr_key])
+                history["Precision"].append(metrics[precision_key])
                 history["NDCG"].append(metrics[ndcg_key])
 
                 print(
                     f"Epoch {epoch:>3}/{epochs} | "
                     f"Loss: {loss:.4f} | "
-                    f"{hr_key}: {metrics[hr_key]:.4f} | "
+                    f"{precision_key}: {metrics[precision_key]:.4f} | "
                     f"{ndcg_key}: {metrics[ndcg_key]:.4f}"
                     + (" ✓ saved" if improved else "")
                 )
